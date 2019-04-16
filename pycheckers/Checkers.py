@@ -13,6 +13,7 @@ import pygame # import pygame package
 from pygame.locals import * # import values and constants
 from sys import exit # import exit function
 import time 
+import os 
 
 ######################## VARIABLES ########################
 
@@ -36,9 +37,21 @@ pause = 5 # number of seconds to pause the game for after end of game
 start = True # are we at the beginnig of the game?
 
 # experiment variables 
-round = 1 
+round = 0
 geneticTime = 0 
 minimaxTime = 0 
+geneticWins = 0 
+minimaxWins = 0 
+draws = 0
+genetic_ply = 1
+minimax_ply = 1
+fileNum = 1
+
+# delete all test files 
+for i in range(1,7):
+	exists = os.path.isfile("C:\\pycheckers\\ply"+str(i)+".txt")
+	if exists:
+		os.remove("C:\\pycheckers\\ply"+str(i)+".txt")
 
 ######################## CLASSES ########################
 
@@ -58,8 +71,8 @@ class Player(object):
 
 # class representing move 
 class Move(object):
-	def __init__(self, moveData, board, player):
-		self.moveData = moveData 
+	def __init__(self, moveCoordinates, board, player):
+		self.moveCoordinates = moveCoordinates 
 		self.board = board 
 		self.player = player 
 		self.score = None
@@ -116,10 +129,10 @@ class Chromosome(object):
 	def crossover(self, other):
 		c1 = Chromosome() 
 		c2 = Chromosome() 
-		if self.genes[0].getMove().moveData == other.genes[0].getMove().moveData:
+		if self.genes[0].getMove().moveCoordinates == other.genes[0].getMove().moveCoordinates:
 			# The genes are compatible so they can mate 
 			for i in range(len(self.genes)):
-				if self.genes[i].getMove().moveData == other.genes[i].getMove().moveData:
+				if self.genes[i].getMove().moveCoordinates == other.genes[i].getMove().moveCoordinates:
 					c1.addGene(self.genes[i].getMove())
 					c2.addGene(other.genes[i].getMove()) 
 				else:
@@ -202,7 +215,7 @@ class ReservationNode(object):
 		self.bestMove = bestMove 
 
 	def moveExists(self, move):
-		if self.gene.move.moveData == move.moveData:
+		if self.gene.move.moveCoordinates == move.moveCoordinates:
 			return True 
 		return False 
 
@@ -414,7 +427,7 @@ def printReservationTree(reservationNode):
 		return 
 	else:
 		for child in reservationNode.getChildren():
-			print(child.getGene().move.moveData," Id: ",child.getId()," Parent: ",child.parent.id, " Gene: ", child.getGene())
+			print(child.getGene().move.moveCoordinates," Id: ",child.getId()," Parent: ",child.parent.id, " Gene: ", child.getGene())
 			printReservationTree(child) 
 
 def evaluateChromosomesHelper(reservationTree):
@@ -431,7 +444,7 @@ def evaluateChromosomesHelper(reservationTree):
 				for child in reservationNode.getChildren():
 					if child.getMinimaxScore() >= child.getBestScore():
 						reservationNode.setBestScore(child.getMinimaxScore())
-						reservationNode.setBestMove(child.getGene().getMove().moveData) 
+						reservationNode.setBestMove(child.getGene().getMove().moveCoordinates) 
 			else:
 				if reservationNode.getPlayer() == 'black':
 					alpha = -10000 
@@ -536,13 +549,14 @@ def buildChromosome(board, player, ply, chromosome):
 		return 
  
 	moves = avail_moves(board, player) 
+	if len(moves) <= 0:
+		return None 
 	i = random.randint(0, len(moves)-1)
 	new_board = deepcopy(board)
 	make_move((moves[i][0], moves[i][1]), (moves[i][2], moves[i][3]), new_board) 
 
 	move = Move([(moves[i][0], moves[i][1]), (moves[i][2], moves[i][3])], new_board, player) 
-	gene = Gene(move)
-	chromosome.genes.append(gene) 
+	chromosome.addGene(move)
 
 	if player == 'black': player = 'white' 
 	else: player = 'black' 
@@ -985,42 +999,68 @@ def show_countdown(i):
 
 # will display the winner and do a countdown to a new game
 def show_winner(winner):
-	global board, round, geneticTime, minimaxTime # we are resetting the global board
-	
+	global board, round, minimaxWins, geneticWins, draws, geneticTime, minimaxTime, fileNum, genetic_ply, minimax_ply
+	if genetic_ply > 6:
+		exit() 
+	if winner == "black":
+		minimaxWins += 1 
+	if winner == "white":
+		geneticWins += 1
+	if winner == "draw":
+		draws += 1
 	round += 1 
-	print("Round: ", round) 
-	print("Genetic Time: ", geneticTime)
-	print("Minimax Time: ", minimaxTime) 
-	if winner == 'draw': show_message("draw, press 'F1, F2, F3' for a new game")
-	else: show_message(winner+" wins, press 'F1, F2, F3' for a new game")
+	print("Round: ",round) 
+	print("Genetic Time: ",geneticTime/round) 
+	print("Minimax Time: ",minimaxTime/round) 
+	print("Winner is: ",winner)  
+	print("Minimax Wins: ",minimaxWins)  
+	print("Genetic Wins: ",geneticWins)  
+	print("Draws: ",draws)  
+	print("---------------------------")
+	exists = os.path.isfile("C:\\pycheckers\\ply"+str(fileNum)+".txt")
+	if exists:
+		file = open("ply"+str(fileNum)+".txt","a")
+		file.write("Round: "+str(round)+'\n') 
+		file.write("Genetic Time: "+str(geneticTime/round)+'\n') 
+		file.write("Minimax Time: "+str(minimaxTime/round)+'\n') 
+		file.write("Winner is: "+str(winner)+'\n')  
+		file.write("Minimax Wins: "+str(minimaxWins)+'\n')  
+		file.write("Genetic Wins: "+str(geneticWins)+'\n')  
+		file.write("Draws: "+str(draws)+'\n')  
+		file.write("---------------------------\n\n")
+		file.close() 
+	else:
+		file = open("ply"+str(fileNum)+".txt","w")
+		file.write("Round: "+str(round)+'\n')  
+		file.write("Genetic Time: "+str(geneticTime/round)+'\n') 
+		file.write("Minimax Time: "+str(minimaxTime/round)+'\n') 
+		file.write("Winner is: "+str(winner)+'\n')  
+		file.write("Minimax Wins: "+str(minimaxWins)+'\n')  
+		file.write("Genetic Wins: "+str(geneticWins)+'\n')  
+		file.write("Draws: "+str(draws)+'\n')  
+		file.write("---------------------------\n\n")
+		file.close() 
+	if winner == 'draw': show_message("draw, press 'F1' to exit")
+	else: show_message(winner+" wins, press 'F1' to exit")
 	pygame.display.flip() # display scene from buffer
 	show_countdown(pause) # show countdown for number of seconds
 	board = init_board() # ... and start a new game
-	start = True 
-
-# function displaying position of clicked square
-def mouse_click(pos):
-	global selected, move_limit # use global variables
-
-	# only go ahead if we can actually play :)
-	if (turn != 'black' and white.type != 'cpu') or (turn != 'white' and black.type != 'cpu'):
-		column = int(pos[0]/(window_size[0]/board_size))
-		row = int(pos[1]/(window_size[1]/board_size))
-
-		if board[row][column] != 0 and board[row][column].color == turn:
-			selected = row, column # 'select' a piece
-		else:
-			moves = avail_moves(board, turn) # get available moves for that player
-			for i in range(len(moves)):
-				if selected[0] == moves[i][0] and selected[1] == moves[i][1]:
-					if row == moves[i][2] and column == moves[i][3]:
-						make_move(selected, (row, column), board) # make the move
-						move_limit[1] += 1 # add to move limit
-						end_turn() # end turn
+	if round == 100: 
+		print("Moving on to ply: ",genetic_ply+1) 
+		print("---------------------------")
+		round = 0 
+		geneticTime = 0 
+		geneticWins = 0 
+		genetic_ply += 1 
+		minimaxTime = 0 
+		minimaxWins = 0 
+		minimax_ply += 1
+		fileNum += 1
+		draws = 0 
+		board = game_init(minimax_ply)
 
 # running the genetic algorithm 
 def runGenetic(strategy, ply_depth):
-
 	if turn != 'black' and white.type != 'cpu':
 		white.strategy = strategy 
 		white.ply_depth = ply_depth 
@@ -1034,7 +1074,7 @@ def runGenetic(strategy, ply_depth):
 
 pygame.init() # initialize pygame
 
-board = game_init('1') # initialize players and board for the game
+board = game_init(minimax_ply) # initialize players and board for the game
 
 #player_check() # will check for errors in player settings
 ply_check() # make changes to player's ply if playing vs genetic
@@ -1047,32 +1087,13 @@ background = pygame.image.load(background_image_filename).convert() # load backg
 font = pygame.font.Font('freesansbold.ttf', 11) # font for the messages
 font_big = pygame.font.Font('freesansbold.ttf', 13) # font for the countdown
 
-genetic_ply = 6
 while True: # main game loop
 	for event in pygame.event.get(): # the event loop
 		if event.type == QUIT:
 			exit() # quit game
 		elif event.type == pygame.KEYDOWN:
-			if event.key == pygame.K_F1: # when pressing 'F1'...
-				board = game_init('1')
-				genetic_ply = 1 
-			if event.key == pygame.K_F2: # when pressing 'F2'...
-				board = game_init('2')
-				genetic_ply = 2 
-			if event.key == pygame.K_F3: # when pressing 'F3'...
-				board = game_init('3')
-				genetic_ply = 3
-			if event.key == pygame.K_F4:
-				board = game_init('4')
-				genetic_ply = 4
-			if event.key == pygame.K_F5:
-				board = game_init('5')
-				genetic_ply = 5 
-			if event.key == pygame.K_F6:
-				board = game_init('6')
-				genetic_ply = 6 
-			if event.key == pygame.K_F7:
-				exit() 
+			if event.key == pygame.K_F1: 
+				exit()
 	if start == False:
 		runGenetic('genetic', genetic_ply) 
 
